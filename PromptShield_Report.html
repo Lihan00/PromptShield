@@ -118,7 +118,7 @@
             </tr>
             <tr>
                 <th>진단 결과 (Verdict)</th>
-                <td><span style="background-color: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-weight: bold;">판단 불가 (N/A)</span></td>
+                <td><span class="badge-vulnerable">취약 발견 (VULNERABLE)</span></td>
             </tr>
         </table>
         <div class="desc-box">
@@ -129,41 +129,41 @@
         <table class="info-table">
             <tr>
                 <th>취약점 명칭</th>
-                <td><b>N/A</b></td>
+                <td><b>SQL Injection</b></td>
             </tr>
             <tr>
                 <th>OWASP 카테고리</th>
-                <td>None</td>
+                <td>A05 Injection</td>
             </tr>
             <tr>
                 <th>위험도 (Severity)</th>
-                <td><span style="color: #dc2626; font-weight: bold;">None</span></td>
+                <td><span style="color: #dc2626; font-weight: bold;">HIGH</span></td>
             </tr>
             <tr>
                 <th>판단 근거 요약</th>
-                <td>제공된 HTTP 요청 및 응답 데이터로부터 웹 애플리케이션 취약점을 식별할 수 있는 충분한 증거가 없습니다.</td>
+                <td>SQL 구문 오류 메시지가 응답에 포함되어 있어 SQL Injection 취약점이 존재함을 나타냅니다.</td>
             </tr>
             <tr>
                 <th>요청 분석 근거 (Request)</th>
-                <td>요청 데이터에 대한 구체적인 정보가 부족합니다.</td>
+                <td>쿼리 매개변수에 SQL Injection 패턴인 '1' OR '1'='1'이 포함되어 있습니다.</td>
             </tr>
             <tr>
                 <th>응답 분석 근거 (Response)</th>
-                <td>응답 데이터는 주로 스타일 정보로 구성되어 있으며, 취약점과 관련된 정보가 없습니다.</td>
+                <td>응답 본문에 SQL 구문 오류 메시지 'You have an error in your SQL syntax near '1''가 포함되어 있습니다.</td>
             </tr>
             <tr>
                 <th>보안 영향 (Impact)</th>
-                <td>None</td>
+                <td>데이터베이스에 대한 비인가 접근 및 데이터 유출 가능성이 있습니다.</td>
             </tr>
             <tr>
                 <th>추가 확인사항 (N/A 전용)</th>
-                <td>취약점 분석을 위해서는 요청 본문 데이터와 응답의 더 많은 컨텍스트 정보가 필요합니다.</td>
+                <td>None</td>
             </tr>
         </table>
 
         <div class="section-header">3. 프레임워크별 시큐어코딩 및 패치 가이드</div>
         <div class="desc-box">
-            <b>대응 방안 요약:</b> None
+            <b>대응 방안 요약:</b> SQL 쿼리에서 사용자 입력을 안전하게 처리하기 위해 준비된 문(statement) 또는 ORM을 사용하십시오.
         </div>
 
         
@@ -171,11 +171,14 @@
             <h4>📌 프레임워크: Spring (Java)</h4>
             <div class="code-box-wrapper">
                 <div class="code-title vuln">❌ 취약한 코드 (Vulnerable)</div>
-                <pre><code>// 해당 항목 코드 없음</code></pre>
+                <pre><code>String query = "SELECT * FROM users WHERE user_id = '" + userId + "'";
+Statement stmt = connection.createStatement();</code></pre>
             </div>
             <div class="code-box-wrapper">
                 <div class="code-title secure">⭕ 안전한 패치 코드 (Secure)</div>
-                <pre><code>// 해당 항목 코드 없음</code></pre>
+                <pre><code>String query = "SELECT * FROM users WHERE user_id = ?";
+PreparedStatement pstmt = connection.prepareStatement(query);
+pstmt.setString(1, userId);</code></pre>
             </div>
         </div>
         
@@ -183,11 +186,13 @@
             <h4>📌 프레임워크: Flask (Python)</h4>
             <div class="code-box-wrapper">
                 <div class="code-title vuln">❌ 취약한 코드 (Vulnerable)</div>
-                <pre><code>// 해당 항목 코드 없음</code></pre>
+                <pre><code>query = f"SELECT * FROM users WHERE user_id = '{user_id}'"
+cursor.execute(query)</code></pre>
             </div>
             <div class="code-box-wrapper">
                 <div class="code-title secure">⭕ 안전한 패치 코드 (Secure)</div>
-                <pre><code>// 해당 항목 코드 없음</code></pre>
+                <pre><code>query = "SELECT * FROM users WHERE user_id = %s"
+cursor.execute(query, (user_id,))</code></pre>
             </div>
         </div>
         
@@ -195,11 +200,13 @@
             <h4>📌 프레임워크: Node.js</h4>
             <div class="code-box-wrapper">
                 <div class="code-title vuln">❌ 취약한 코드 (Vulnerable)</div>
-                <pre><code>// 해당 항목 코드 없음</code></pre>
+                <pre><code>const query = `SELECT * FROM users WHERE user_id = '${userId}'`;
+db.query(query);</code></pre>
             </div>
             <div class="code-box-wrapper">
                 <div class="code-title secure">⭕ 안전한 패치 코드 (Secure)</div>
-                <pre><code>// 해당 항목 코드 없음</code></pre>
+                <pre><code>const query = 'SELECT * FROM users WHERE user_id = ?';
+db.query(query, [userId], callback);</code></pre>
             </div>
         </div>
         
