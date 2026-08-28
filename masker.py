@@ -31,8 +31,7 @@ SENSITIVE_KEYS = {
 TEXT_RULES = [
     ("bearer_token", re.compile(r"(?i)(Bearer\s+)[A-Za-z0-9._\-+/=]+"), r"\1[REDACTED_TOKEN]"),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\b"), "[REDACTED_JWT]"),
-    ("openai_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"), "[REDACTED_OPENAI_KEY]"),
-    ("aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "[REDACTED_AWS_KEY]"),
+    ("api_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"), "[REDACTED_API_KEY]"),
     ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[REDACTED_EMAIL]"),
     ("phone", re.compile(r"\b(?:01[016789]-?\d{3,4}-?\d{4}|0(?:2|[3-6][1-5]|70|80)-?\d{3,4}-?\d{4})\b"), "[REDACTED_PHONE]"),
     ("rrn", re.compile(r"\b\d{6}-?[1-8]\d{6}\b"), "[REDACTED_RRN]"),
