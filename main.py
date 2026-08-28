@@ -347,45 +347,16 @@ def print_terminal_summary(llm_result: dict):
 
 
 def generate_report_html_content(llm_result: dict) -> str:
-    # 1. 데이터 추출 및 기본값 설정
-    vuln_name = llm_result.get("vulnerability_name", "Unknown Vulnerability")
+    vuln_name = llm_result.get("vulnerability_name", "SQL Injection")
     verdict = llm_result.get("verdict", "VULNERABLE")
-<<<<<<< HEAD
     severity = llm_result.get("severity")
     owasp_category = llm_result.get("owasp_category")
     reason = llm_result.get("reason", "근거 없음")
     impact = llm_result.get("impact")
     additional_check = llm_result.get("additional_check")
     remediation_summary = llm_result.get("remediation_summary")
-=======
-    severity = llm_result.get("severity", "N/A")
 
-    owasp_category = llm_result.get('owasp_category')
-    owasp_display = owasp_category if owasp_category else "N/A"
-
-    
-    code_guide = None
-    for key in SECURE_CODE_DATABASE:
-        if key.lower() in vuln_name.lower() or vuln_name.lower() in key.lower():
-            code_guide = SECURE_CODE_DATABASE[key]
-            break
-            
-    if not code_guide:
-        code_guide = {
-            "vulnerable_code": {
-                "Spring (Java)": "// 해당 취약점에 대한 샘플 코드 준비 중",
-                "Flask (Python)": "// 해당 취약점에 대한 샘플 코드 준비 중",
-                "Node.js": "// 해당 취약점에 대한 샘플 코드 준비 중"
-            },
-            "secure_code": {
-                "Spring (Java)": "// 입력값 검증 및 안전한 API 사용 필수",
-                "Flask (Python)": "// 입력값 검증 및 안전한 API 사용 필수",
-                "Node.js": "// 입력값 검증 및 안전한 API 사용 필수"
-            }
-        }
->>>>>>> b1f7bf9783be387f20e3b67a6315ae3c9489cc6b
-
-    # 2. 결과 뱃지 생성
+    # 배지 생성
     if verdict == "VULNERABLE":
         result_badge = '<span class="badge badge-vulnerable">취약 발견 (VULNERABLE)</span>'
     elif verdict == "SAFE":
@@ -393,31 +364,29 @@ def generate_report_html_content(llm_result: dict) -> str:
     else:
         result_badge = '<span class="badge badge-na">판단 불가 (N/A)</span>'
 
-    # 3. 분석 근거 데이터 추출 및 포맷팅
+    severity_badge = f'<span class="badge badge-severity">{severity}</span>' if severity and str(severity).upper() not in ["NULL", "NONE", "N/A"] else '<span style="color:#64748b;">-</span>'
+
+    # 분석 근거 데이터 추출
     evidence_dict = llm_result.get("evidence", {})
     req_evidence = "<br>• ".join([""] + evidence_dict.get("request", ["근거 없음"]))
     res_evidence = "<br>• ".join([""] + evidence_dict.get("response", ["근거 없음"]))
 
-    # 4. 동적 테이블 행(Table Rows) 구성
-    # 기본 항목 (모든 상태에서 출력)
+    def is_valid(val):
+        return val and str(val).strip().upper() not in ["NULL", "NONE", "N/A"]
+
+    # 동적 테이블 행 구성
     table_rows = f"""
     <tr>
         <th>취약점 명칭</th>
         <td><b>{vuln_name}</b></td>
     </tr>
     """
-    
-    # SAFE가 아닌 경우(VULNERABLE, N/A)에만 OWASP 및 위험도 출력, 값이 없으면 N/A 처리
-    if verdict != "SAFE":
-        # OWASP 분류
-        owasp_display = owasp_category if owasp_category and str(owasp_category).strip().upper() not in ["NULL", "NONE"] else "N/A"
-        table_rows += f"<tr><th>OWASP 분류</th><td>{owasp_display}</td></tr>"
+    if is_valid(owasp_category):
+        table_rows += f"<tr><th>OWASP 분류</th><td>{owasp_category}</td></tr>"
         
-        # 위험도
-        severity_badge = f'<span class="badge badge-severity">{severity}</span>' if severity and str(severity).strip().upper() not in ["NULL", "NONE", "N/A"] else '<span class="badge badge-na">N/A</span>'
+    if verdict != "SAFE":
         table_rows += f"<tr><th>위험도 (Severity)</th><td>{severity_badge}</td></tr>"
 
-    # 기본 항목 (판단 근거 및 패킷 분석)
     table_rows += f"""
     <tr>
         <th>판단 근거 요약</th>
@@ -433,26 +402,24 @@ def generate_report_html_content(llm_result: dict) -> str:
     </tr>
     """
 
-    # SAFE가 아닌 경우에만 Impact 표출, 값이 없으면 N/A 처리
-    if verdict != "SAFE":
-        impact_display = impact if impact and str(impact).strip().upper() not in ["NULL", "NONE"] else "N/A"
-        table_rows += f"<tr><th>보안 영향 (Impact)</th><td>{impact_display}</td></tr>"
+    if verdict != "SAFE" and is_valid(impact):
+        table_rows += f"<tr><th>보안 영향 (Impact)</th><td>{impact}</td></tr>"
 
-    # 판단 불가(N/A)인 경우에만 추가 확인사항 표출, 값이 없으면 N/A 처리
-    if verdict == "N/A":
-        additional_check_display = additional_check if additional_check and str(additional_check).strip().upper() not in ["NULL", "NONE"] else "N/A"
-        table_rows += f"<tr><th>추가 확인사항 (N/A 전용)</th><td>{additional_check_display}</td></tr>"
+    if verdict == "N/A" and is_valid(additional_check):
+        table_rows += f"<tr><th>추가 확인사항 (N/A 전용)</th><td>{additional_check}</td></tr>"
 
-    # 5. 시큐어코딩 섹션 렌더링 (SAFE인 경우 출력 생략)
+    # 시큐어코딩 섹션 렌더링
     secure_coding_section = ""
-    if verdict != "SAFE":
+
+    # 수정: VULNERABLE인 경우에만 시큐어코딩 가이드 출력
+    # SAFE 판정에서는 시큐어코딩 가이드 전체를 출력하지 않음
+    if str(verdict).strip().upper() == "VULNERABLE":
         code_guide = None
         for key in SECURE_CODE_DATABASE:
             if key.lower() in vuln_name.lower() or vuln_name.lower() in key.lower():
                 code_guide = SECURE_CODE_DATABASE[key]
                 break
                 
-        # 매핑되는 가이드가 없을 경우 기본 템플릿 제공
         if not code_guide:
             code_guide = {
                 "vulnerable_code": {
@@ -485,19 +452,16 @@ def generate_report_html_content(llm_result: dict) -> str:
             </div>
             """
             
-        remediation_display = remediation_summary if remediation_summary and str(remediation_summary).strip().upper() not in ["NULL", "NONE"] else "N/A"
-        
         secure_coding_section = f"""
         <div class="section">
             <div class="section-title">3. 프레임워크별 시큐어코딩 및 패치 가이드</div>
             <div class="desc-box">
-                <b>대응 방안 요약:</b> {remediation_display}
+                <b>대응 방안 요약:</b> {remediation_summary if is_valid(remediation_summary) else '해당 없음'}
             </div>
             {multi_lang_html}
         </div>
         """
 
-    # 6. 최종 HTML 생성
     styled_html = f"""
     <!DOCTYPE html>
     <html lang="ko">
@@ -727,12 +691,19 @@ def generate_vulnerability_report_pdf_bytes(masked_json_data: dict) -> bytes:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         page.set_content(html_string)
-        pdf_bytes = page.pdf(format="A4", print_background=True, margin={"top": "20px", "bottom": "20px", "left": "20px", "right": "20px"})
+        pdf_bytes = page.pdf(
+            format="A4",
+            print_background=True,
+            margin={
+                "top": "20px",
+                "bottom": "20px",
+                "left": "20px",
+                "right": "20px"
+            }
+        )
         browser.close()
         
-    return pdf_bytes,llm_output_json
-
-
+    return pdf_bytes
 
 
 def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./reports") -> str:
@@ -743,25 +714,23 @@ def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./r
         unique_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
         output_path = os.path.join(output_dir, unique_filename)
         
-        pdf_bytes,diagnosis = generate_vulnerability_report_pdf_bytes(masked_json_data)
-
-
+        pdf_bytes = generate_vulnerability_report_pdf_bytes(masked_json_data)
         
         with open(output_path, "wb") as f:
             f.write(pdf_bytes)
             
-        return output_path,diagnosis
-
+        return output_path
     except Exception as e:
         print(f"[Error] 통합 보고서 파일 생성 실패: {str(e)}")
         raise e
-    
 # ==========================================
 # 🧪 테스트 실행 코드
 # ==========================================
 if __name__ == "__main__":
+    # SAFE 판정을 명확하게 확인하기 위한 테스트 데이터
+    # 정상적인 검색 요청 + 안전하게 처리된 응답을 사용
     sample_packet = {
-    "request": {
+       "request": {
     "method": "GET",
     "path": "/gm/search_result.php",
     "query_params": {
@@ -805,4 +774,3 @@ if __name__ == "__main__":
     report_file_path = generate_vulnerability_report(sample_packet)
 
     print(f"✅ 보고서 생성 완료! 저장된 위치: {os.path.abspath(report_file_path)}")
-
