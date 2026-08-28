@@ -17,13 +17,13 @@ st.set_page_config(page_title="PromptShield", page_icon="🛡️", layout="wide"
 
 st.title("🛡️ PromptShield: 패킷 기반 AI 취약점 진단 시스템")
 st.markdown("HTTP 요청/응답 패킷의 민감정보를 안전하게 마스킹한 후 AI 기반 취약점 진단 및 시큐어코딩 가이드를 제공합니다.")
-
 # Session State 초기화
 if "raw_packet" not in st.session_state:
     st.session_state.raw_packet = ""
 
 # --- [1단계] 패킷 입력 ---
 st.subheader("1. HTTP 패킷 입력 및 민감정보 마스킹")
+st.write("※ Header 부분은 줄바꿈 해주세요")
 
 req_col, res_col = st.columns(2)
 with req_col:
@@ -62,7 +62,11 @@ if start_clicked:
         try:
             _, rest = packet.split("=== REQUEST ===\n", 1)
             req_part, res_part = rest.split("\n\n=== RESPONSE ===\n", 1)
-            result = process_packet(req_part, res_part)
+            result = process_packet(
+    req_part, res_part,
+    skip_request=not request_text,
+    skip_response=not response_text,
+)
             if not result["success"]:
                 st.error("전처리 실패: " + ", ".join(result["errors"]))
                 st.stop()
