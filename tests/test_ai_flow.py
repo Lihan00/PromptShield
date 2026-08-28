@@ -32,6 +32,10 @@ RESPONSE = "HTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"ok\": true}"
 
 
 class PayloadTests(unittest.TestCase):
+    def test_prompt_requests_vulnerabilities_array(self):
+        self.assertIn('"vulnerabilities": [', main.SYSTEM_PROMPT)
+        self.assertIn("Do not generate vulnerability_count", main.SYSTEM_PROMPT)
+
     def assert_sections(self, request, response, expected_keys):
         result = process_packet(request, response)
         self.assertTrue(result["success"])
@@ -62,29 +66,95 @@ class PayloadTests(unittest.TestCase):
 
 
 class PostprocessTests(unittest.TestCase):
-    def result(self, verdict, severity):
-        return main.postprocess_llm_result({
-            "vulnerability_name": "SQL Injection",
+    def finding(self, name="SQL Injection", verdict="VULNERABLE", severity="HIGH", **extra):
+        finding = {
+            "vulnerability_name": name,
             "verdict": verdict,
             "severity": severity,
-        })
+            "reason": f"{name} 분석 결과",
+            "evidence": {"request": ["요청 근거"], "response": ["응답 근거"]},
+            "impact": "영향",
+            "remediation_summary": "조치",
+            "additional_check": None,
+        }
+        finding.update(extra)
+        return finding
 
-    def test_vulnerable_count_and_korean_mapping(self):
-        result = self.result("VULNERABLE", "HIGH")
+    def result(self, vulnerabilities):
+        return main.postprocess_llm_result({"vulnerabilities": vulnerabilities})
+
+    def test_zero_vulnerabilities(self):
+        result = self.result([])
+        self.assertEqual(result["vulnerability_count"], 0)
+        self.assertEqual(result["vulnerabilities"], [])
+
+    def test_one_vulnerability(self):
+        result = self.result([self.finding()])
         self.assertEqual(result["vulnerability_count"], 1)
+
+    def test_three_vulnerabilities_are_counted_from_array(self):
+        result = self.result([
+            self.finding("Sensitive Information Exposure", severity="MEDIUM"),
+            self.finding("Security Misconfiguration", severity="LOW"),
+            self.finding("Cross-Site Scripting (XSS)", severity="HIGH"),
+        ])
+        self.assertEqual(result["vulnerability_count"], 3)
+        self.assertEqual(len(result["vulnerabilities"]), 3)
+        self.assertEqual(result["vulnerability_name"], "Cross-Site Scripting (XSS)")
+        self.assertEqual(result["severity"], "HIGH")
+
+    def test_mixed_verdicts_count_only_vulnerable(self):
+        result = self.result([
+            self.finding("SQL Injection", "VULNERABLE", "HIGH"),
+            self.finding("Command Injection", "SAFE", "CRITICAL"),
+            self.finding("Path Traversal", "N/A", "LOW"),
+            self.finding("Sensitive Information Exposure", "VULNERABLE", "MEDIUM"),
+        ])
+        self.assertEqual(result["vulnerability_count"], 2)
+        self.assertEqual(len(result["vulnerabilities"]), 4)
+        self.assertIsNone(result["vulnerabilities"][1]["severity"])
+        self.assertIsNone(result["vulnerabilities"][2]["severity"])
+
+    def test_representative_tie_keeps_first(self):
+        result = self.result([
+            self.finding("SQL Injection", severity="HIGH"),
+            self.finding("Cross-Site Scripting (XSS)", severity="HIGH"),
+        ])
+        self.assertEqual(result["vulnerability_name"], "SQL Injection")
+
+    def test_full_vulnerability_details_are_preserved(self):
+        original = self.finding(custom_detail={"key": "value"})
+        result = self.result([original])
+        finding = result["vulnerabilities"][0]
+        for key, value in original.items():
+            self.assertEqual(finding[key], value)
+
+    def test_report_contains_count_and_all_findings(self):
+        result = self.result([
+            self.finding("SQL Injection", severity="HIGH"),
+            self.finding("Security Misconfiguration", severity="LOW"),
+        ])
+        report = main.generate_report_html_content(result)
+        self.assertIn("전체 취약점 건수", report)
+        self.assertIn("전체 취약점 분석 결과 (2건 탐지)", report)
+        self.assertIn("SQL Injection", report)
+        self.assertIn("Security Misconfiguration", report)
+
+    def test_vulnerable_korean_mapping(self):
+        result = self.result([self.finding()])
         self.assertEqual(result["verdict_ko"], "취약")
         self.assertEqual(result["severity_ko"], "높음")
         self.assertEqual(result["vulnerability_name_ko"], "SQL 인젝션")
 
     def test_safe_count_and_severity(self):
-        result = self.result("SAFE", "HIGH")
+        result = self.result([self.finding(verdict="SAFE", severity="HIGH")])
         self.assertEqual(result["vulnerability_count"], 0)
         self.assertEqual(result["verdict_ko"], "양호")
         self.assertIsNone(result["severity"])
         self.assertIsNone(result["severity_ko"])
 
     def test_na_count_and_severity(self):
-        result = self.result("N/A", "LOW")
+        result = self.result([self.finding(verdict="N/A", severity="LOW")])
         self.assertEqual(result["vulnerability_count"], 0)
         self.assertEqual(result["verdict_ko"], "판단 불가")
         self.assertIsNone(result["severity"])
@@ -96,7 +166,8 @@ class PostprocessTests(unittest.TestCase):
             "LOW": "낮음", "INFO": "정보",
         }
         for severity, severity_ko in expected_severity.items():
-            self.assertEqual(self.result("VULNERABLE", severity)["severity_ko"], severity_ko)
+            result = self.result([self.finding(severity=severity)])
+            self.assertEqual(result["severity_ko"], severity_ko)
 
         expected_names = {
             "SQL Injection": "SQL 인젝션",
@@ -107,13 +178,10 @@ class PostprocessTests(unittest.TestCase):
             "Path Traversal": "경로 조작",
             "Unrestricted File Upload": "무제한 파일 업로드",
             "Sensitive Information Exposure": "민감정보 노출",
+            "Security Misconfiguration": "보안 설정 오류",
         }
         for name, name_ko in expected_names.items():
-            result = main.postprocess_llm_result({
-                "vulnerability_name": name,
-                "verdict": "VULNERABLE",
-                "severity": "INFO",
-            })
+            result = self.result([self.finding(name=name, severity="INFO")])
             self.assertEqual(result["vulnerability_name_ko"], name_ko)
 
 

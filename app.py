@@ -140,7 +140,7 @@ if "diagnosis" in st.session_state:
     }
     sev_color = severity_colors.get(severity, "#94a3b8")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown("**위험도**")
         st.markdown(
@@ -150,6 +150,7 @@ if "diagnosis" in st.session_state:
         )
     col2.metric("OWASP 카테고리", na(d.get("owasp_category"), "N/A"))
     col3.metric("판정", f"{cfg['icon']} {verdict}")
+    col4.metric("취약점 개수", d.get("vulnerability_count", 0))
 
     st.divider()
 
@@ -173,6 +174,9 @@ if "diagnosis" in st.session_state:
 
     with st.expander("📝 전체 판단 근거 요약 보기"):
         st.write(na(d.get("reason")))
+
+    with st.expander("전체 취약점 분석 결과 보기"):
+        st.json(d.get("vulnerabilities", []), expanded=False)
 
 # PDF 다운로드 
 if "pdf_bytes" in st.session_state:
