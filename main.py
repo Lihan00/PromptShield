@@ -350,12 +350,40 @@ def generate_report_html_content(llm_result: dict) -> str:
     # 1. 데이터 추출 및 기본값 설정
     vuln_name = llm_result.get("vulnerability_name", "Unknown Vulnerability")
     verdict = llm_result.get("verdict", "VULNERABLE")
+<<<<<<< HEAD
     severity = llm_result.get("severity")
     owasp_category = llm_result.get("owasp_category")
     reason = llm_result.get("reason", "근거 없음")
     impact = llm_result.get("impact")
     additional_check = llm_result.get("additional_check")
     remediation_summary = llm_result.get("remediation_summary")
+=======
+    severity = llm_result.get("severity", "N/A")
+
+    owasp_category = llm_result.get('owasp_category')
+    owasp_display = owasp_category if owasp_category else "N/A"
+
+    
+    code_guide = None
+    for key in SECURE_CODE_DATABASE:
+        if key.lower() in vuln_name.lower() or vuln_name.lower() in key.lower():
+            code_guide = SECURE_CODE_DATABASE[key]
+            break
+            
+    if not code_guide:
+        code_guide = {
+            "vulnerable_code": {
+                "Spring (Java)": "// 해당 취약점에 대한 샘플 코드 준비 중",
+                "Flask (Python)": "// 해당 취약점에 대한 샘플 코드 준비 중",
+                "Node.js": "// 해당 취약점에 대한 샘플 코드 준비 중"
+            },
+            "secure_code": {
+                "Spring (Java)": "// 입력값 검증 및 안전한 API 사용 필수",
+                "Flask (Python)": "// 입력값 검증 및 안전한 API 사용 필수",
+                "Node.js": "// 입력값 검증 및 안전한 API 사용 필수"
+            }
+        }
+>>>>>>> b1f7bf9783be387f20e3b67a6315ae3c9489cc6b
 
     # 2. 결과 뱃지 생성
     if verdict == "VULNERABLE":
@@ -702,7 +730,9 @@ def generate_vulnerability_report_pdf_bytes(masked_json_data: dict) -> bytes:
         pdf_bytes = page.pdf(format="A4", print_background=True, margin={"top": "20px", "bottom": "20px", "left": "20px", "right": "20px"})
         browser.close()
         
-    return pdf_bytes
+    return pdf_bytes,llm_output_json
+
+
 
 
 def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./reports") -> str:
@@ -713,12 +743,15 @@ def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./r
         unique_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
         output_path = os.path.join(output_dir, unique_filename)
         
-        pdf_bytes = generate_vulnerability_report_pdf_bytes(masked_json_data)
+        pdf_bytes,diagnosis = generate_vulnerability_report_pdf_bytes(masked_json_data)
+
+
         
         with open(output_path, "wb") as f:
             f.write(pdf_bytes)
             
-        return output_path
+        return output_path,diagnosis
+
     except Exception as e:
         print(f"[Error] 통합 보고서 파일 생성 실패: {str(e)}")
         raise e
@@ -770,4 +803,6 @@ if __name__ == "__main__":
 
     print("🤖 실제 패킷 데이터로 취약점 진단 및 보고서 생성 중...")
     report_file_path = generate_vulnerability_report(sample_packet)
+
     print(f"✅ 보고서 생성 완료! 저장된 위치: {os.path.abspath(report_file_path)}")
+
