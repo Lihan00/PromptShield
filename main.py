@@ -139,6 +139,7 @@ Use OWASP Top 10:2025 for high-level risk categorization and OWASP Web Security 
 6. Path Traversal
 7. Unrestricted File Upload
 8. Sensitive Information Exposure
+9. Security Misconfiguration
 
 [General Rules]
 1. Analyze every supplied HTTP section. The input may contain Request only, Response only, or both.
@@ -245,19 +246,27 @@ Do not invent evidence.
 
 Use this structure:
 {
-  "vulnerability_name": "string",
-  "owasp_category": "string or null",
-  "verdict": "VULNERABLE | SAFE | N/A",
-  "severity": "CRITICAL | HIGH | MEDIUM | LOW | INFO | null",
-  "reason": "Concise explanation of the verdict in Korean.",
-  "evidence": {
-    "request": ["Observable Request evidence in Korean"],
-    "response": ["Observable Response evidence in Korean"]
-  },
-  "impact": "Security impact if supported, otherwise null (in Korean).",
-  "remediation_summary": "Concise recommended remediation or null (in Korean).",
-  "additional_check": "Additional information/testing required for N/A, otherwise null (in Korean)."
+  "vulnerabilities": [
+    {
+      "vulnerability_name": "Canonical English vulnerability name",
+      "owasp_category": "string or null",
+      "verdict": "VULNERABLE | SAFE | N/A",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW | INFO | null",
+      "reason": "Concise explanation of the verdict in Korean.",
+      "evidence": {
+        "request": ["Observable Request evidence in Korean"],
+        "response": ["Observable Response evidence in Korean"]
+      },
+      "impact": "Security impact if supported, otherwise null (in Korean).",
+      "remediation_summary": "Concise recommended remediation or null (in Korean).",
+      "additional_check": "Additional information/testing required for N/A, otherwise null (in Korean)."
+    }
+  ]
 }
+
+Return one array item for every distinct vulnerability assessment that is relevant to the supplied data.
+Do not combine different vulnerability types into one item and do not return duplicate vulnerability types.
+Do not generate vulnerability_count or choose a representative vulnerability; application code will calculate them.
 """.strip()
 
 
@@ -310,27 +319,85 @@ VULNERABILITY_NAME_KO = {
     "Path Traversal": "경로 조작",
     "Unrestricted File Upload": "무제한 파일 업로드",
     "Sensitive Information Exposure": "민감정보 노출",
+    "Security Misconfiguration": "보안 설정 오류",
 }
 
 
-def postprocess_llm_result(llm_result: dict) -> dict:
-    """Canonical 영문값을 검증하고 UI/보고서용 한글값과 건수를 계산한다."""
-    result = dict(llm_result)
-    verdict = str(result.get("verdict", "N/A")).upper()
+SEVERITY_RANK = {
+    "CRITICAL": 5, "HIGH": 4, "MEDIUM": 3, "LOW": 2, "INFO": 1,
+}
+
+
+def _postprocess_vulnerability(vulnerability: dict) -> dict:
+    finding = dict(vulnerability)
+    verdict = str(finding.get("verdict", "N/A")).upper()
     if verdict not in VERDICT_KO:
         verdict = "N/A"
-    result["verdict"] = verdict
-    result["verdict_ko"] = VERDICT_KO[verdict]
+    finding["verdict"] = verdict
+    finding["verdict_ko"] = VERDICT_KO[verdict]
 
-    severity = result.get("severity")
+    severity = finding.get("severity")
+    if isinstance(severity, str):
+        severity = severity.upper()
     if verdict != "VULNERABLE" or severity not in SEVERITY_KO:
         severity = None
-    result["severity"] = severity
-    result["severity_ko"] = SEVERITY_KO.get(severity)
+    finding["severity"] = severity
+    finding["severity_ko"] = SEVERITY_KO.get(severity)
 
-    vulnerability_name = result.get("vulnerability_name")
-    result["vulnerability_name_ko"] = VULNERABILITY_NAME_KO.get(vulnerability_name)
-    result["vulnerability_count"] = 1 if verdict == "VULNERABLE" else 0
+    vulnerability_name = finding.get("vulnerability_name")
+    finding["vulnerability_name_ko"] = VULNERABILITY_NAME_KO.get(vulnerability_name)
+    return finding
+
+
+def select_representative_vulnerability(vulnerabilities: list[dict]) -> dict:
+    """가장 높은 severity의 VULNERABLE 항목을 선택하고 동률이면 첫 항목을 유지한다."""
+    vulnerable_findings = [
+        finding for finding in vulnerabilities
+        if finding.get("verdict") == "VULNERABLE"
+    ]
+    if vulnerable_findings:
+        return max(
+            vulnerable_findings,
+            key=lambda finding: SEVERITY_RANK.get(finding.get("severity"), 0),
+        )
+    if vulnerabilities:
+        return vulnerabilities[0]
+    return {
+        "vulnerability_name": "N/A",
+        "vulnerability_name_ko": None,
+        "owasp_category": None,
+        "verdict": "N/A",
+        "verdict_ko": VERDICT_KO["N/A"],
+        "severity": None,
+        "severity_ko": None,
+        "reason": "분석 가능한 취약점 결과가 없습니다.",
+        "evidence": {"request": [], "response": []},
+        "impact": None,
+        "remediation_summary": None,
+        "additional_check": None,
+    }
+
+
+def postprocess_llm_result(llm_result: dict) -> dict:
+    """전체 결과를 정규화하고 취약점 건수와 대표 취약점을 Python에서 계산한다."""
+    result = dict(llm_result)
+    raw_vulnerabilities = result.get("vulnerabilities", [])
+    if not isinstance(raw_vulnerabilities, list):
+        raw_vulnerabilities = []
+
+    vulnerabilities = [
+        _postprocess_vulnerability(item)
+        for item in raw_vulnerabilities
+        if isinstance(item, dict)
+    ]
+    result["vulnerabilities"] = vulnerabilities
+    result["vulnerability_count"] = sum(
+        finding["verdict"] == "VULNERABLE" for finding in vulnerabilities
+    )
+
+    representative = select_representative_vulnerability(vulnerabilities)
+    for key, value in representative.items():
+        result[key] = value
     return result
 
 
@@ -370,6 +437,7 @@ def print_terminal_summary(llm_result: dict):
     severity = llm_result.get("severity", "N/A")
     owasp = llm_result.get("owasp_category", "N/A")
     reason = llm_result.get("reason", "근거 없음")
+    vulnerability_count = llm_result.get("vulnerability_count", 0)
     
     RED = "\033[91m"
     GREEN = "\033[92m"
@@ -392,6 +460,7 @@ def print_terminal_summary(llm_result: dict):
     print(f"• 진단 결과    : {v_color}{BOLD}{verdict}{RESET}")
     print(f"• 위험도      : {RED if severity in ['CRITICAL', 'HIGH'] else CYAN}{severity}{RESET}")
     print(f"• OWASP 분류  : {owasp}")
+    print(f"• 전체 취약점 수: {vulnerability_count}")
     print(f"• 판단 근거   : {reason}")
     print("="*60 + "\n")
 
@@ -408,6 +477,8 @@ def generate_report_html_content(llm_result: dict) -> str:
     impact = llm_result.get("impact")
     additional_check = llm_result.get("additional_check")
     remediation_summary = llm_result.get("remediation_summary")
+    vulnerabilities = llm_result.get("vulnerabilities", [])
+    vulnerability_count = llm_result.get("vulnerability_count", 0)
 
     # 배지 생성
     if verdict == "VULNERABLE":
@@ -426,6 +497,22 @@ def generate_report_html_content(llm_result: dict) -> str:
 
     def is_valid(val):
         return val and str(val).strip().upper() not in ["NULL", "NONE", "N/A"]
+
+    all_findings_html = "".join(
+        f"""
+        <div class="lang-card">
+            <div class="lang-title">{index}. {html.escape(str(finding.get('vulnerability_name', 'N/A')))}</div>
+            <pre><code>{html.escape(json.dumps(finding, ensure_ascii=False, indent=2))}</code></pre>
+        </div>
+        """
+        for index, finding in enumerate(vulnerabilities, start=1)
+    )
+    all_findings_section = f"""
+    <div class="section">
+        <div class="section-title">전체 취약점 분석 결과 ({vulnerability_count}건 탐지)</div>
+        {all_findings_html or '<div class="desc-box">탐지된 취약점이 없습니다.</div>'}
+    </div>
+    """
 
     # 동적 테이블 행 구성
     table_rows = f"""
@@ -694,6 +781,10 @@ def generate_report_html_content(llm_result: dict) -> str:
                         <th>종합 진단 결과</th>
                         <td>{result_badge}</td>
                     </tr>
+                    <tr>
+                        <th>전체 취약점 건수</th>
+                        <td>{vulnerability_count}</td>
+                    </tr>
                 </table>
                 <div class="desc-box">
                     본 보고서는 마스킹 처리된 패킷 데이터를 기반으로 LLM이 진단한 결과 및 판정 근거를 포함합니다.
@@ -707,6 +798,7 @@ def generate_report_html_content(llm_result: dict) -> str:
                 </table>
             </div>
 
+            {all_findings_section}
             {secure_coding_section}
         </div>
     </body>

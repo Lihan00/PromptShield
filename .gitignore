@@ -3,3 +3,4 @@ __pycache__/
 .pytest_cache/
 .env
 reports/
+test_llm_analysis.py
