@@ -30,7 +30,7 @@ SAMPLE_PACKETS = [
             "\r\n"
         ),
         "raw_response": (
-            "HTTP/1.1 200 OK\r\n"
+            "HTTP/2 200 OK\r\n"
             "Date: Wed, 26 Aug 2026 10:00:00 GMT\r\n"
             "Content-Type: text/html; charset=UTF-8\r\n"
             "Set-Cookie: PHPSESSID=2a1b3c4d5e6f7g8h9i0j; path=/\r\n"
@@ -56,7 +56,7 @@ SAMPLE_PACKETS = [
             "\r\n"
         ),
         "raw_response": (
-            "HTTP/1.1 200 OK\r\n"
+            "HTTP/3 200 OK\r\n"
             "Date: Wed, 26 Aug 2026 10:05:00 GMT\r\n"
             "Content-Type: text/html; charset=UTF-8\r\n"
             "Connection: close\r\n"

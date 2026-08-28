@@ -21,7 +21,7 @@ def is_valid_request(text: str) -> bool:
     if not lines:
         return False
     first_line = lines[0].strip()
-    pattern = r'^(' + '|'.join(HTTP_METHODS) + r')\s+\S+\s+HTTP/\d\.\d$'
+    pattern = r'^(' + '|'.join(HTTP_METHODS) + r')\s+\S+\s+HTTP/\d(\.\d)?$'
     return bool(re.match(pattern, first_line, re.IGNORECASE))
 
 
@@ -31,7 +31,7 @@ def is_valid_response(text: str) -> bool:
     if not lines:
         return False
     first_line = lines[0].strip()
-    pattern = r'^HTTP/\d\.\d\s+\d{3}(\s+.*)?$'
+    pattern = r'^HTTP/\d(\.\d)?\s+\d{3}(\s+.*)?$'
     return bool(re.match(pattern, first_line))
 
 
