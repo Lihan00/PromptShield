@@ -13,6 +13,14 @@ SESSION_COOKIE_NAMES = {
     "beefhook",
 }
 
+SERVER_HEADER_KEYS = {
+    "server",
+    "x-powered-by",
+    "x-aspnet-version",
+    "x-runtime",
+    "via",
+}
+
 SENSITIVE_KEYS = {
     "password",
     "passwd",
@@ -32,10 +40,10 @@ TEXT_RULES = [
     ("bearer_token", re.compile(r"(?i)(Bearer\s+)[A-Za-z0-9._\-+/=]+"), r"\1[REDACTED_TOKEN]"),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\b"), "[REDACTED_JWT]"),
     ("openai_key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"), "[REDACTED_OPENAI_KEY]"),
-    ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "[REDACTED_AWS_KEY]"),
+    ("aws_access_key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "[REDACTED_AWS_KEY]"),
     ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[REDACTED_EMAIL]"),
-    ("phone", re.compile(r"\b01[016789]-?\d{3,4}-?\d{4}\b"), "[REDACTED_PHONE]"),
-    ("rrn", re.compile(r"\b\d{6}-[1-4]\d{6}\b"), "[REDACTED_RRN]"),
+    ("phone", re.compile(r"\b(?:01[016789]-?\d{3,4}-?\d{4}|0(?:2|[3-6][1-5]|70|80)-?\d{3,4}-?\d{4})\b"), "[REDACTED_PHONE]"),
+    ("rrn", re.compile(r"\b\d{6}-?[1-8]\d{6}\b"), "[REDACTED_RRN]"),    ("server_info", re.compile(r"\b(?:Apache(?:-Coyote)?|nginx|Microsoft-IIS|OpenResty|LiteSpeed|Werkzeug|Tomcat|Jetty|PHP|JSP|ASP\.NET|OpenSSL)/[A-Za-z0-9._-]+\b", re.IGNORECASE), "[REDACTED_SERVER_INFO]"),
     ("ip", re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[REDACTED_IP]"),
 ]
 
@@ -86,6 +94,8 @@ def mask_value(value: Any, masked_fields: set) -> Any:
                 result[key] = mask_authorization(str(val), masked_fields)
             elif lower_key in {"cookie", "set-cookie"}:
                 result[key] = mask_cookie(str(val), masked_fields)
+            elif lower_key in SERVER_HEADER_KEYS:
+                result[key] = mask_server_header(lower_key, str(val), masked_fields)    
             elif is_sensitive_key(str(key)):
                 result[key] = "[REDACTED_SECRET]"
                 masked_fields.add("secret_param")
@@ -115,6 +125,16 @@ def mask_authorization(value: str, masked_fields: set) -> str:
     masked_fields.add("authorization")
     return "[REDACTED_AUTHORIZATION]"
 
+def mask_server_header(header_name: str, value: str, masked_fields: set) -> str:
+    masked_fields.add("server_info")
+
+    if header_name == "server":
+        return "[REDACTED_SERVER]"
+
+    if header_name == "x-powered-by":
+        return "[REDACTED_POWERED_BY]"
+
+    return "[REDACTED_SERVER_INFO]"
 
 def mask_cookie(value: str, masked_fields: set) -> str:
     parts = value.split(";")
