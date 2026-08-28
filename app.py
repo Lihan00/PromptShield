@@ -3,7 +3,7 @@ import os
 import json
 import base64
 from main import generate_vulnerability_report_pdf_bytes
-from preprocessing.orchestrator import process_packet
+from orchestrator import process_packet
 
 def na(value, default="해당 없음"):
     """null/빈 값이면 기본 문구로, 값이 있으면 그대로 반환"""
@@ -90,19 +90,19 @@ if start_clicked:
     req_col1, req_col2 = st.columns(2)
     with req_col1:
         st.caption("🔴 원본")
-        st.code(req_part or "(입력된 요청 패킷 없음)", language="http")
+        st.code(req_part or "(입력된 요청 패킷 없음)", language="http", height=300)
     with req_col2:
         st.caption("🟢 마스킹 처리목록")
-        st.code(json.dumps(masked_req, indent=2, ensure_ascii=False), language="json")
+        st.code(json.dumps(masked_req, indent=2, ensure_ascii=False), language="json", height=300)
 
     st.markdown("**응답(Response) 패킷**")
     res_col1, res_col2 = st.columns(2)
     with res_col1:
         st.caption("🔴 원본")
-        st.code(res_part or "(입력된 응답 패킷 없음)", language="http")
+        st.code(res_part or "(입력된 응답 패킷 없음)", language="http", height=300)
     with res_col2:
         st.caption("🟢 마스킹 처리목록")
-        st.code(json.dumps(masked_res, indent=2, ensure_ascii=False), language="json")
+        st.code(json.dumps(masked_res, indent=2, ensure_ascii=False), language="json", height=300)
 
     st.divider()
 
