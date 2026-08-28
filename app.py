@@ -64,8 +64,8 @@ if start_clicked:
             req_part, res_part = rest.split("\n\n=== RESPONSE ===\n", 1)
             result = process_packet(
     req_part, res_part,
-    skip_request=not request_text,
-    skip_response=not response_text,
+    not request_text,
+    not response_text,
 )
             if not result["success"]:
                 st.error("전처리 실패: " + ", ".join(result["errors"]))
