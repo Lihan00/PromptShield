@@ -13,11 +13,21 @@ from pipeline import run_preprocessing
 from masker import mask_case, build_llm_payload
 
 
-def process_packet(request_text: str, response_text: str) -> dict:
+def process_packet(
+    request_text: str,
+    response_text: str,
+    skip_request: bool = False,
+    skip_response: bool = False,
+) -> dict:
     """
     request/response 원문 텍스트를 받아서
     검증 -> 구조화 -> 응답 발췌 -> 마스킹 -> LLM 전달용 payload 생성까지
     전체 파이프라인을 한 번에 실행한다.
+
+    skip_request / skip_response: UI의 "입력 안함" 체크박스 등으로 명시적으로
+    True가 전달되면 해당 쪽은 유효성 검사/구조화/발췌를 모두 건너뛰고,
+    결과의 request 또는 response가 None으로 채워진다.
+    (빈 텍스트만으로는 생략 의도를 추측하지 않음 - 반드시 이 플래그로 판단)
 
     반환값:
       성공 시: {"success": True, "llm_payload": {...}, "masked_case": {...}}
@@ -28,7 +38,10 @@ def process_packet(request_text: str, response_text: str) -> dict:
     - llm_payload: masked_case에서 request/response만 뽑은 것 (실제 LLM API에 넘길 것)
     """
     try:
-        preprocessed = run_preprocessing(request_text, response_text)
+        preprocessed = run_preprocessing(
+            request_text, response_text,
+            skip_request=skip_request, skip_response=skip_response,
+        )
     except Exception as e:
         return {"success": False, "errors": [f"처리 중 오류: {e}"]}
 
@@ -69,6 +82,11 @@ def _read_multiline(prompt: str) -> str:
     return "\n".join(lines)
 
 
+def _read_yes_no(prompt: str) -> bool:
+    """터미널 테스트용 - UI의 '입력 안함' 체크박스를 y/n으로 흉내"""
+    answer = input(f"{prompt} (입력 안 하려면 y, 입력하려면 그냥 Enter): ").strip().lower()
+    return answer == "y"
+
 
 if __name__ == "__main__":
     # Windows 콘솔(cp949)에서 이모지/한글 출력 시 UnicodeEncodeError 방지
@@ -76,12 +94,22 @@ if __name__ == "__main__":
 
     print("=== PromptShield 오케스트레이터 - 직접 입력 테스트 ===\n")
 
-    request_text = _read_multiline("Request를 붙여넣으세요:")
-    print()
-    response_text = _read_multiline("Response를 붙여넣으세요:")
+    skip_request = _read_yes_no("Request를 입력하지 않으시겠습니까?")
+    request_text = ""
+    if not skip_request:
+        request_text = _read_multiline("Request를 붙여넣으세요:")
     print()
 
-    result = process_packet(request_text, response_text)
+    skip_response = _read_yes_no("Response를 입력하지 않으시겠습니까?")
+    response_text = ""
+    if not skip_response:
+        response_text = _read_multiline("Response를 붙여넣으세요:")
+    print()
+
+    result = process_packet(
+        request_text, response_text,
+        skip_request=skip_request, skip_response=skip_response,
+    )
 
     if not result["success"]:
         print("처리 실패")
