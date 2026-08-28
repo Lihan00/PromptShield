@@ -703,7 +703,7 @@ def generate_vulnerability_report_pdf_bytes(masked_json_data: dict) -> bytes:
         )
         browser.close()
         
-    return pdf_bytes
+    return pdf_bytes ,llm_output_json 
 
 
 def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./reports") -> str:
@@ -714,7 +714,7 @@ def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./r
         unique_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
         output_path = os.path.join(output_dir, unique_filename)
         
-        pdf_bytes = generate_vulnerability_report_pdf_bytes(masked_json_data)
+        pdf_bytes, llm_output_json = generate_vulnerability_report_pdf_bytes(masked_json_data)
         
         with open(output_path, "wb") as f:
             f.write(pdf_bytes)
