@@ -350,6 +350,9 @@ def generate_report_html_content(llm_result: dict) -> str:
     vuln_name = llm_result.get("vulnerability_name", "SQL Injection")
     verdict = llm_result.get("verdict", "VULNERABLE")
     severity = llm_result.get("severity", "N/A")
+
+    owasp_category = llm_result.get('owasp_category')
+    owasp_display = owasp_category if owasp_category else "N/A"
     
     code_guide = None
     for key in SECURE_CODE_DATABASE:
