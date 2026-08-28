@@ -80,26 +80,25 @@ def validate_packet(request_text: str, response_text: str) -> dict:
     request_text = normalize_line_endings(request_text or "") 
     response_text = normalize_line_endings(response_text or "")
 
-    # --- Request 검증 ---
-    if not request_text.strip():
-        errors.append("Request가 비어있습니다.")
-    elif not is_valid_request(request_text):
+    if not request_text.strip() and not response_text.strip():
+        errors.append("Request 또는 Response 중 하나 이상이 필요합니다.")
+
+    # --- Request 검증 (입력된 경우에만) ---
+    if request_text.strip() and not is_valid_request(request_text):
         errors.append(
             "올바른 HTTP Request 형식이 아닙니다. "
             "첫 줄은 'GET /path HTTP/1.1' 같은 형태여야 합니다."
         )
-    elif not has_headers(request_text):
+    elif request_text.strip() and not has_headers(request_text):
         errors.append("Request에 헤더가 없습니다 (Host 등 최소 1개 필요).")
 
-    # --- Response 검증 ---
-    if not response_text.strip():
-        errors.append("Response가 비어있습니다.")
-    elif not is_valid_response(response_text):
+    # --- Response 검증 (입력된 경우에만) ---
+    if response_text.strip() and not is_valid_response(response_text):
         errors.append(
             "올바른 HTTP Response 형식이 아닙니다. "
             "첫 줄은 'HTTP/1.1 200 OK' 같은 형태여야 합니다."
         )
-    elif not has_headers(response_text):
+    elif response_text.strip() and not has_headers(response_text):
         errors.append("Response에 헤더가 없습니다 (Content-Type 등 최소 1개 필요).")
 
     is_valid = len(errors) == 0
@@ -108,8 +107,8 @@ def validate_packet(request_text: str, response_text: str) -> dict:
         "is_valid": is_valid,
         "errors": errors,
         # 통과 시에만 다음 단계로 넘길 정규화된 원문 포함
-        "raw_request": request_text if is_valid else None,
-        "raw_response": response_text if is_valid else None,
+        "raw_request": request_text if is_valid and request_text.strip() else None,
+        "raw_response": response_text if is_valid and response_text.strip() else None,
     }
 
 

@@ -12,18 +12,19 @@ def run_preprocessing(request_text: str, response_text: str) -> dict:
     if not validation["is_valid"]:
         return {"success": False, "errors": validation["errors"], "data": None}
 
-    structured_request = structure_request(validation["raw_request"])
-    structured_response = structure_response(validation["raw_response"])
-    structured_response["body_excerpt"] = extract_body_excerpt(structured_response["body"])
+    data = {}
+    if validation["raw_request"] is not None:
+        data["request"] = structure_request(validation["raw_request"])
+    if validation["raw_response"] is not None:
+        structured_response = structure_response(validation["raw_response"])
+        structured_response["body_excerpt"] = extract_body_excerpt(structured_response["body"])
+        data["response"] = structured_response
 
     #딕셔너리 형태로 반환
     return {
         "success": True,
         "errors": [],
-        "data": {
-            "request": structured_request,
-            "response": structured_response
-        }
+        "data": data
     }
 
 #입력 데이터 터미널 실행 시 필요 함수

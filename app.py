@@ -120,6 +120,9 @@ if "diagnosis" in st.session_state:
     verdict = d.get("verdict", "N/A")
     severity = na(d.get("severity"), "N/A")
     vuln_name = d.get("vulnerability_name", "알 수 없음")
+    vuln_name_ko = d.get("vulnerability_name_ko")
+    if vuln_name_ko:
+        vuln_name = f"{vuln_name} / {vuln_name_ko}"
 
     # 상단 판정 배너
     verdict_config = {
