@@ -353,6 +353,7 @@ def generate_report_html_content(llm_result: dict) -> str:
 
     owasp_category = llm_result.get('owasp_category')
     owasp_display = owasp_category if owasp_category else "N/A"
+
     
     code_guide = None
     for key in SECURE_CODE_DATABASE:
@@ -674,7 +675,9 @@ def generate_vulnerability_report_pdf_bytes(masked_json_data: dict) -> bytes:
         pdf_bytes = page.pdf(format="A4", print_background=True, margin={"top": "20px", "bottom": "20px", "left": "20px", "right": "20px"})
         browser.close()
         
-    return pdf_bytes
+    return pdf_bytes,llm_output_json
+
+
 
 
 def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./reports") -> str:
@@ -685,12 +688,15 @@ def generate_vulnerability_report(masked_json_data: dict, output_dir: str = "./r
         unique_filename = f"report_{uuid.uuid4().hex[:8]}.pdf"
         output_path = os.path.join(output_dir, unique_filename)
         
-        pdf_bytes = generate_vulnerability_report_pdf_bytes(masked_json_data)
+        pdf_bytes,diagnosis = generate_vulnerability_report_pdf_bytes(masked_json_data)
+
+
         
         with open(output_path, "wb") as f:
             f.write(pdf_bytes)
             
-        return output_path
+        return output_path,diagnosis
+
     except Exception as e:
         print(f"[Error] 통합 보고서 파일 생성 실패: {str(e)}")
         raise e
@@ -742,4 +748,6 @@ if __name__ == "__main__":
 
     print("🤖 실제 패킷 데이터로 취약점 진단 및 보고서 생성 중...")
     report_file_path = generate_vulnerability_report(sample_packet)
+
     print(f"✅ 보고서 생성 완료! 저장된 위치: {os.path.abspath(report_file_path)}")
+
