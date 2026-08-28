@@ -141,12 +141,12 @@ Use OWASP Top 10:2025 for high-level risk categorization and OWASP Web Security 
 8. Sensitive Information Exposure
 
 [General Rules]
-1. Analyze both Request and Response.
+1. Analyze every supplied HTTP section. The input may contain Request only, Response only, or both.
 2. Do not classify a request as vulnerable only because it contains suspicious input.
-3. Use observable Request and Response evidence together whenever possible.
+3. Use observable Request and Response evidence together whenever both are supplied.
 4. Do not assume server-side behavior that cannot be observed.
 5. If evidence is insufficient, return N/A instead of guessing.
-6. Evidence must come from the supplied Request or Response.
+6. Evidence must come from the supplied Request or Response. Do not assume or describe a section that was not supplied.
 7. Redacted values such as [REDACTED_TOKEN] and [REDACTED_SESSION] are not attack evidence.
 8. Do not use expected labels or ground-truth information outside Request and Response.
 
@@ -262,54 +262,104 @@ Use this structure:
 
 
 def parse_incoming_json(json_data: dict) -> str:
-    req = json_data.get("request", {})
-    res = json_data.get("response", {})
-    
-    req_method = req.get('method', 'UNKNOWN')
-    req_path = req.get('path', '/')
-    req_query = req.get('query_params', {})
-    req_headers = req.get('headers', {})
-    req_body = req.get('body', {})
-    
-    res_status = res.get('status_code', 200)
-    res_headers = res.get('headers', {})
-    res_body = res.get('body') or res.get('body_excerpt') or "응답 데이터 내용 없음"
+    if not isinstance(json_data, dict):
+        raise ValueError("LLM 입력은 JSON 객체여야 합니다.")
 
-    context = f"""
-[Target Information]
-- Source/Context: {json_data.get('source', 'Unknown')}
+    sections = []
+    req = json_data.get("request")
+    res = json_data.get("response")
 
-[HTTP Request (Masked)]
-Method: {req_method}
-Path: {req_path}
-Query Params: {json.dumps(req_query, ensure_ascii=False)}
-Headers: {json.dumps(req_headers, ensure_ascii=False)}
-Body: {json.dumps(req_body, ensure_ascii=False)}
+    if req is not None:
+        request_lines = [
+            "[HTTP Request (Masked)]",
+            f"Method: {req.get('method', 'UNKNOWN')}",
+            f"Path: {req.get('path', '/')}",
+            f"Query Params: {json.dumps(req.get('query_params', {}), ensure_ascii=False)}",
+            f"Headers: {json.dumps(req.get('headers', {}), ensure_ascii=False)}",
+        ]
+        if req.get('body') is not None:
+            request_lines.append(f"Body: {json.dumps(req['body'], ensure_ascii=False)}")
+        sections.append("\n".join(request_lines))
 
-[HTTP Response (Masked)]
-Status Code: {res_status}
-Headers: {json.dumps(res_headers, ensure_ascii=False)}
-Body Excerpt: {res_body}
-    """
-    return context.strip()
+    if res is not None:
+        response_body = res.get('body_excerpt') or res.get('body', '')
+        sections.append(
+            "[HTTP Response (Masked)]\n"
+            f"Status Code: {res.get('status_code', 'UNKNOWN')}\n"
+            f"Headers: {json.dumps(res.get('headers', {}), ensure_ascii=False)}\n"
+            f"Body Excerpt: {response_body}"
+        )
+
+    if not sections:
+        raise ValueError("Request 또는 Response 중 하나 이상이 필요합니다.")
+
+    return "\n\n".join(sections)
 
 
-def run_llm_diagnosis(packet_context: str) -> dict:
-    user_prompt = f"""Analyze the following masked HTTP Request and Response.
+VERDICT_KO = {"VULNERABLE": "취약", "SAFE": "양호", "N/A": "판단 불가"}
+SEVERITY_KO = {
+    "CRITICAL": "매우 심각", "HIGH": "높음", "MEDIUM": "보통",
+    "LOW": "낮음", "INFO": "정보",
+}
+VULNERABILITY_NAME_KO = {
+    "SQL Injection": "SQL 인젝션",
+    "Command Injection": "명령어 인젝션",
+    "Cross-Site Scripting (XSS)": "크로스사이트 스크립팅(XSS)",
+    "Broken Access Control / IDOR": "접근 통제 취약점 / IDOR",
+    "Server-Side Request Forgery (SSRF)": "서버 측 요청 위조(SSRF)",
+    "Path Traversal": "경로 조작",
+    "Unrestricted File Upload": "무제한 파일 업로드",
+    "Sensitive Information Exposure": "민감정보 노출",
+}
+
+
+def postprocess_llm_result(llm_result: dict) -> dict:
+    """Canonical 영문값을 검증하고 UI/보고서용 한글값과 건수를 계산한다."""
+    result = dict(llm_result)
+    verdict = str(result.get("verdict", "N/A")).upper()
+    if verdict not in VERDICT_KO:
+        verdict = "N/A"
+    result["verdict"] = verdict
+    result["verdict_ko"] = VERDICT_KO[verdict]
+
+    severity = result.get("severity")
+    if verdict != "VULNERABLE" or severity not in SEVERITY_KO:
+        severity = None
+    result["severity"] = severity
+    result["severity_ko"] = SEVERITY_KO.get(severity)
+
+    vulnerability_name = result.get("vulnerability_name")
+    result["vulnerability_name_ko"] = VULNERABILITY_NAME_KO.get(vulnerability_name)
+    result["vulnerability_count"] = 1 if verdict == "VULNERABLE" else 0
+    return result
+
+
+def build_openai_request_payload(packet_context: str) -> dict:
+    supplied_sections = []
+    if "[HTTP Request (Masked)]" in packet_context:
+        supplied_sections.append("Request")
+    if "[HTTP Response (Masked)]" in packet_context:
+        supplied_sections.append("Response")
+    scope = " and ".join(supplied_sections)
+    user_prompt = f"""Analyze the following supplied masked HTTP {scope} data.
 
 {packet_context}
 """
+    return {
+        "model": "gpt-4o",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+
+
+def run_llm_diagnosis(packet_context: str) -> dict:
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2,
-            response_format={"type": "json_object"}
-        )
-        return json.loads(response.choices[0].message.content)
+        response = client.chat.completions.create(**build_openai_request_payload(packet_context))
+        return postprocess_llm_result(json.loads(response.choices[0].message.content))
     except Exception as e:
         return {"error": str(e)}
 
@@ -348,6 +398,9 @@ def print_terminal_summary(llm_result: dict):
 
 def generate_report_html_content(llm_result: dict) -> str:
     vuln_name = llm_result.get("vulnerability_name", "SQL Injection")
+    vuln_name_ko = llm_result.get("vulnerability_name_ko")
+    if vuln_name_ko:
+        vuln_name = f"{vuln_name} / {vuln_name_ko}"
     verdict = llm_result.get("verdict", "VULNERABLE")
     severity = llm_result.get("severity")
     owasp_category = llm_result.get("owasp_category")

@@ -30,22 +30,18 @@ def run_preprocessing(
     if not validation["is_valid"]:
         return {"success": False, "errors": validation["errors"], "data": None}
 
-    structured_request = (
-        structure_request(validation["raw_request"]) if not skip_request else None
-    )
-
-    structured_response = None
-    if not skip_response:
+    data = {}
+    if validation["raw_request"] is not None:
+        data["request"] = structure_request(validation["raw_request"])
+    if validation["raw_response"] is not None:
         structured_response = structure_response(validation["raw_response"])
         structured_response["body_excerpt"] = extract_body_excerpt(structured_response["body"])
+        data["response"] = structured_response
 
     return {
         "success": True,
         "errors": [],
-        "data": {
-            "request": structured_request,
-            "response": structured_response
-        }
+        "data": data
     }
 
 

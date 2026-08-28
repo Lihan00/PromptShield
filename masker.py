@@ -174,8 +174,9 @@ def build_llm_payload(masked_case: dict) -> dict:
     expected_vuln, expected_verdict, notes 등 정답 라벨은 제외한다.
     """
     return {
-        "request": masked_case.get("request"),
-        "response": masked_case.get("response"),
+        key: masked_case[key]
+        for key in ("request", "response")
+        if key in masked_case and masked_case[key] is not None
     }
 
 
