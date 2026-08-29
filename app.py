@@ -3,7 +3,7 @@ import os
 import json
 import base64
 from main import generate_vulnerability_report_pdf_bytes
-from preprocessing.orchestrator import process_packet
+from orchestrator import process_packet
 
 def na(value, default="해당 없음"):
     """null/빈 값이면 기본 문구로, 값이 있으면 그대로 반환"""
@@ -17,13 +17,13 @@ st.set_page_config(page_title="PromptShield", page_icon="🛡️", layout="wide"
 
 st.title("🛡️ PromptShield: 패킷 기반 AI 취약점 진단 시스템")
 st.markdown("HTTP 요청/응답 패킷의 민감정보를 안전하게 마스킹한 후 AI 기반 취약점 진단 및 시큐어코딩 가이드를 제공합니다.")
-
 # Session State 초기화
 if "raw_packet" not in st.session_state:
     st.session_state.raw_packet = ""
 
 # --- [1단계] 패킷 입력 ---
 st.subheader("1. HTTP 패킷 입력 및 민감정보 마스킹")
+st.write("※ Header 부분은 줄바꿈 해주세요")
 
 req_col, res_col = st.columns(2)
 with req_col:
@@ -62,7 +62,11 @@ if start_clicked:
         try:
             _, rest = packet.split("=== REQUEST ===\n", 1)
             req_part, res_part = rest.split("\n\n=== RESPONSE ===\n", 1)
-            result = process_packet(req_part, res_part)
+            result = process_packet(
+    req_part, res_part,
+    not request_text,
+    not response_text,
+)
             if not result["success"]:
                 st.error("전처리 실패: " + ", ".join(result["errors"]))
                 st.stop()
@@ -86,19 +90,19 @@ if start_clicked:
     req_col1, req_col2 = st.columns(2)
     with req_col1:
         st.caption("🔴 원본")
-        st.code(req_part or "(입력된 요청 패킷 없음)", language="http")
+        st.code(req_part or "(입력된 요청 패킷 없음)", language="http", height=300)
     with req_col2:
         st.caption("🟢 마스킹 처리목록")
-        st.code(json.dumps(masked_req, indent=2, ensure_ascii=False), language="json")
+        st.code(json.dumps(masked_req, indent=2, ensure_ascii=False), language="json", height=300)
 
     st.markdown("**응답(Response) 패킷**")
     res_col1, res_col2 = st.columns(2)
     with res_col1:
         st.caption("🔴 원본")
-        st.code(res_part or "(입력된 응답 패킷 없음)", language="http")
+        st.code(res_part or "(입력된 응답 패킷 없음)", language="http", height=300)
     with res_col2:
         st.caption("🟢 마스킹 처리목록")
-        st.code(json.dumps(masked_res, indent=2, ensure_ascii=False), language="json")
+        st.code(json.dumps(masked_res, indent=2, ensure_ascii=False), language="json", height=300)
 
     st.divider()
 

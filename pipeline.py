@@ -1,14 +1,32 @@
+"""
+PromptShield - 전처리 파이프라인 진입점
+validator -> structurer -> extractor 세 단계를 순서대로 실행.
+마스킹팀은 이 파일의 run_preprocessing() 하나만 호출하면 됨.
+"""
+
 from validator import validate_packet
 from structurer import structure_request, structure_response
 from extractor import extract_body_excerpt
-from sample_packets import SAMPLE_PACKETS
-import json
 
-def run_preprocessing(request_text: str, response_text: str) -> dict:
+
+def run_preprocessing(
+    request_text: str,
+    response_text: str,
+    skip_request: bool = False,
+    skip_response: bool = False,
+) -> dict:
     """
-    검증 -> 구조화 -> 응답 발췌 까지 수행 / 마스킹팀이 이걸 받아서 수행
+    검증 -> 구조화 -> 응답 발췌 까지 수행 / 마스킹팀이 이걸 받아서 수행.
+
+    skip_request 또는 skip_response가 True면 (UI의 "입력 안함" 버튼 등으로
+    명시적으로 표시된 경우) 해당 쪽은 구조화/발췌를 건너뛰고 결과의
+    request 또는 response 값이 None으로 채워진다. 두 값 모두 skip이면
+    검증 단계에서 에러로 처리됨 (validate_packet 참고).
     """
-    validation = validate_packet(request_text, response_text)
+    validation = validate_packet(
+        request_text, response_text,
+        skip_request=skip_request, skip_response=skip_response
+    )
     if not validation["is_valid"]:
         return {"success": False, "errors": validation["errors"], "data": None}
 
@@ -20,16 +38,19 @@ def run_preprocessing(request_text: str, response_text: str) -> dict:
         structured_response["body_excerpt"] = extract_body_excerpt(structured_response["body"])
         data["response"] = structured_response
 
-    #딕셔너리 형태로 반환
     return {
         "success": True,
         "errors": [],
         "data": data
     }
 
-#입력 데이터 터미널 실행 시 필요 함수
-"""
+
 def _read_multiline(prompt: str) -> str:
+    """
+    터미널에서 여러 줄 입력을 받는다.
+    빈 줄을 연속 2번 입력하면 입력 종료로 간주.
+    Burp에서 복사한 패킷을 그대로 붙여넣고 마지막에 Enter를 두 번 누르면 됨.
+    """
     print(prompt)
     print("(입력 끝내려면 빈 줄에서 Enter 두 번)")
     lines = []
@@ -47,30 +68,11 @@ def _read_multiline(prompt: str) -> str:
     while lines and lines[-1] == "":
         lines.pop()
     return "\n".join(lines)
-"""
+
 
 if __name__ == "__main__":
-    # 샘플 케이스 검증용
-    """
-    print(f"총 {len(SAMPLE_PACKETS)}개 케이스 검증\n")
- 
-    for case in SAMPLE_PACKETS:
-        result = run_preprocessing(case["raw_request"], case["raw_response"])
-        status = "통과" if result["success"] else "실패"
- 
-        print(f"========== [{case['id']}] {case['source']} -> {status} ==========")
- 
-        if not result["success"]:
-            print(f"  오류: {result['errors']}")
-        else:
-            # 마스킹팀으로 실제 넘어가는 부분 = result["data"]
-            print(json.dumps(result["data"], ensure_ascii=False, indent=2))
- 
-        print()
-    """
+    import json
 
-    #실제 데이터 처리
-    """
     print("=== PromptShield 전처리 파이프라인 - 직접 입력 테스트 ===\n")
 
     request_text = _read_multiline("Request를 붙여넣으세요:")
@@ -87,4 +89,3 @@ if __name__ == "__main__":
     else:
         print("✅ 전처리 성공 — 마스킹팀으로 넘어갈 데이터:\n")
         print(json.dumps(result["data"], ensure_ascii=False, indent=2))
-    """

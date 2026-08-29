@@ -68,38 +68,57 @@ def detect_packet_type(text: str) -> str:
     return "unknown"
 
 
-#가장 메인이 되는 함수
-def validate_packet(request_text: str, response_text: str) -> dict:
+def validate_packet(
+    request_text: str,
+    response_text: str,
+    skip_request: bool = False,
+    skip_response: bool = False,
+) -> dict:
     """
     request/response 원문을 받아 유효성 검사 수행.
     통과 시 다음 단계(구조화)로 넘길 준비된 딕셔너리를 반환.
+
+    skip_request / skip_response: UI에서 "입력 안함" 버튼을 눌렀을 때
+    명시적으로 True를 전달. 빈 텍스트만으로 "생략 의도"를 추측하지 않고,
+    이 플래그로만 생략 여부를 판단한다 (빈칸이 실수인지 의도인지 구분 불가하므로).
+    request/response 둘 다 skip이면 분석할 대상이 없으므로 에러 처리.
     """
     errors = []
 
-    #None 처리: None이면 빈 문자열로 치환
-    request_text = normalize_line_endings(request_text or "") 
-    response_text = normalize_line_endings(response_text or "")
+    if skip_request and skip_response:
+        return {
+            "is_valid": False,
+            "errors": ["Request와 Response 중 최소 하나는 입력해야 합니다."],
+            "raw_request": None,
+            "raw_response": None,
+        }
 
-    if not request_text.strip() and not response_text.strip():
-        errors.append("Request 또는 Response 중 하나 이상이 필요합니다.")
+    request_text = normalize_line_endings(request_text or "") if not skip_request else None
+    response_text = normalize_line_endings(response_text or "") if not skip_response else None
 
-    # --- Request 검증 (입력된 경우에만) ---
-    if request_text.strip() and not is_valid_request(request_text):
-        errors.append(
-            "올바른 HTTP Request 형식이 아닙니다. "
-            "첫 줄은 'GET /path HTTP/1.1' 같은 형태여야 합니다."
-        )
-    elif request_text.strip() and not has_headers(request_text):
-        errors.append("Request에 헤더가 없습니다 (Host 등 최소 1개 필요).")
+    # --- Request 검증 (skip이면 건너뜀) ---
+    if not skip_request:
+        if not request_text.strip():
+            errors.append("Request가 비어있습니다.")
+        elif not is_valid_request(request_text):
+            errors.append(
+                "올바른 HTTP Request 형식이 아닙니다. "
+                "첫 줄은 'GET /path HTTP/1.1' 같은 형태여야 합니다."
+            )
+        elif not has_headers(request_text):
+            errors.append("Request에 헤더가 없습니다 (Host 등 최소 1개 필요).")
 
-    # --- Response 검증 (입력된 경우에만) ---
-    if response_text.strip() and not is_valid_response(response_text):
-        errors.append(
-            "올바른 HTTP Response 형식이 아닙니다. "
-            "첫 줄은 'HTTP/1.1 200 OK' 같은 형태여야 합니다."
-        )
-    elif response_text.strip() and not has_headers(response_text):
-        errors.append("Response에 헤더가 없습니다 (Content-Type 등 최소 1개 필요).")
+    # --- Response 검증 (skip이면 건너뜀) ---
+    if not skip_response:
+        if not response_text.strip():
+            errors.append("Response가 비어있습니다.")
+        elif not is_valid_response(response_text):
+            errors.append(
+                "올바른 HTTP Response 형식이 아닙니다. "
+                "첫 줄은 'HTTP/1.1 200 OK' 같은 형태여야 합니다."
+            )
+        elif not has_headers(response_text):
+            errors.append("Response에 헤더가 없습니다 (Content-Type 등 최소 1개 필요).")
 
     is_valid = len(errors) == 0
 
@@ -107,8 +126,9 @@ def validate_packet(request_text: str, response_text: str) -> dict:
         "is_valid": is_valid,
         "errors": errors,
         # 통과 시에만 다음 단계로 넘길 정규화된 원문 포함
-        "raw_request": request_text if is_valid and request_text.strip() else None,
-        "raw_response": response_text if is_valid and response_text.strip() else None,
+        # skip된 쪽은 애초에 None (구조화 단계에서 "생략됨"으로 처리)
+        "raw_request": request_text if (is_valid and not skip_request) else None,
+        "raw_response": response_text if (is_valid and not skip_response) else None,
     }
 
 
@@ -117,7 +137,7 @@ def validate_packet_file(file_text: str) -> dict:
     .txt 파일 업로드용 - 파일 하나에 request/response가 같이 들어있는 경우 대비.
     구분자는 팀에서 정하기 나름인데, 우선 빈 줄 2개(\\n\\n\\n) 이상을
     request/response 경계로 가정하는 기본 버전.
-    UI팀과 실제 업로드 포맷 정해지면 이 부분만 교체.
+    UI팀과 실제 업로드 포맷 정해지면 이 부분만 교체하면 됨.
     """
     text = normalize_line_endings(file_text)
     parts = re.split(r'\n\s*\n\s*\n', text.strip(), maxsplit=1)
@@ -134,15 +154,14 @@ def validate_packet_file(file_text: str) -> dict:
 
 
 if __name__ == "__main__":
-    
     from sample_packets import SAMPLE_PACKETS
- 
+
     print(f"총 {len(SAMPLE_PACKETS)}개 케이스 검증\n")
- 
+
     for case in SAMPLE_PACKETS:
         result = validate_packet(case["raw_request"], case["raw_response"])
-        status = "통과" if result["is_valid"] else "실패"
- 
+        status = "✅ 통과" if result["is_valid"] else "❌ 실패"
+
         print(f"[{case['id']}] {case['source']} -> {status}")
         if not result["is_valid"]:
             for err in result["errors"]:

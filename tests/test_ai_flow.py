@@ -24,7 +24,7 @@ if "playwright.sync_api" not in sys.modules:
     sys.modules["playwright.sync_api"] = sync_api
 
 import main
-from preprocessing.orchestrator import process_packet
+from orchestrator import process_packet
 
 
 REQUEST = "GET /search?q=test HTTP/1.1\nHost: example.com\nAccept: application/json\n\n"
@@ -37,7 +37,12 @@ class PayloadTests(unittest.TestCase):
         self.assertIn("Do not generate vulnerability_count", main.SYSTEM_PROMPT)
 
     def assert_sections(self, request, response, expected_keys):
-        result = process_packet(request, response)
+        result = process_packet(
+            request,
+            response,
+            skip_request=not bool(request),
+            skip_response=not bool(response),
+        )
         self.assertTrue(result["success"])
         self.assertEqual(list(result["llm_payload"]), expected_keys)
 
@@ -61,7 +66,7 @@ class PayloadTests(unittest.TestCase):
         self.assert_sections("", RESPONSE, ["response"])
 
     def test_neither_is_rejected(self):
-        result = process_packet("", "")
+        result = process_packet("", "", skip_request=True, skip_response=True)
         self.assertFalse(result["success"])
 
 
