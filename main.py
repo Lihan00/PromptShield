@@ -321,6 +321,10 @@ VULNERABILITY_NAME_KO = {
     "Sensitive Information Exposure": "민감정보 노출",
     "Security Misconfiguration": "보안 설정 오류",
 }
+OWASP_CATEGORY_KO = {
+    "A01 Broken Access Control": "A01 접근 통제 실패",
+    "A05 Injection": "A05 인젝션",
+}
 
 
 SEVERITY_RANK = {
@@ -346,10 +350,12 @@ def _postprocess_vulnerability(vulnerability: dict) -> dict:
 
     vulnerability_name = finding.get("vulnerability_name")
     finding["vulnerability_name_ko"] = VULNERABILITY_NAME_KO.get(vulnerability_name)
+    owasp_category = finding.get("owasp_category")
+    finding["owasp_category_ko"] = OWASP_CATEGORY_KO.get(owasp_category)
     return finding
 
 
-def select_representative_vulnerability(vulnerabilities: list[dict]) -> dict:
+def select_representative_vulnerability(vulnerabilities: list[dict]) -> dict | None:
     """가장 높은 severity의 VULNERABLE 항목을 선택하고 동률이면 첫 항목을 유지한다."""
     vulnerable_findings = [
         finding for finding in vulnerabilities
@@ -360,14 +366,30 @@ def select_representative_vulnerability(vulnerabilities: list[dict]) -> dict:
             vulnerable_findings,
             key=lambda finding: SEVERITY_RANK.get(finding.get("severity"), 0),
         )
-    if vulnerabilities:
-        return vulnerabilities[0]
-    return {
-        "vulnerability_name": "N/A",
+    return None
+
+
+def _non_vulnerable_summary(vulnerabilities: list[dict]) -> dict:
+    """대표 취약점 없이 SAFE/N/A의 보고서용 근거만 최상위에 유지한다."""
+    # 하나라도 판단 불가 항목이 있으면 전체 요약도 보수적으로 N/A로 둔다.
+    summary = next(
+        (finding for finding in vulnerabilities if finding["verdict"] == "N/A"),
+        None,
+    )
+    if summary is None:
+        summary = next(
+            (finding for finding in vulnerabilities if finding["verdict"] == "SAFE"),
+            None,
+        )
+
+    verdict = summary["verdict"] if summary else "N/A"
+    result = {
+        "vulnerability_name": None,
         "vulnerability_name_ko": None,
         "owasp_category": None,
-        "verdict": "N/A",
-        "verdict_ko": VERDICT_KO["N/A"],
+        "owasp_category_ko": None,
+        "verdict": verdict,
+        "verdict_ko": VERDICT_KO[verdict],
         "severity": None,
         "severity_ko": None,
         "reason": "분석 가능한 취약점 결과가 없습니다.",
@@ -376,6 +398,12 @@ def select_representative_vulnerability(vulnerabilities: list[dict]) -> dict:
         "remediation_summary": None,
         "additional_check": None,
     }
+    if summary:
+        for key in (
+            "reason", "evidence", "impact", "remediation_summary", "additional_check"
+        ):
+            result[key] = summary.get(key)
+    return result
 
 
 def postprocess_llm_result(llm_result: dict) -> dict:
@@ -395,9 +423,11 @@ def postprocess_llm_result(llm_result: dict) -> dict:
         finding["verdict"] == "VULNERABLE" for finding in vulnerabilities
     )
 
-    representative = select_representative_vulnerability(vulnerabilities)
-    for key, value in representative.items():
-        result[key] = value
+    if result["vulnerability_count"]:
+        representative = select_representative_vulnerability(vulnerabilities)
+        result.update(representative)
+    else:
+        result.update(_non_vulnerable_summary(vulnerabilities))
     return result
 
 
