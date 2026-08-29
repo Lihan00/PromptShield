@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+from unittest import mock
 
 
 # AI/PDF 외부 패키지 없이 payload 생성과 후처리만 단위 테스트한다.
@@ -74,6 +75,7 @@ class PostprocessTests(unittest.TestCase):
     def finding(self, name="SQL Injection", verdict="VULNERABLE", severity="HIGH", **extra):
         finding = {
             "vulnerability_name": name,
+            "owasp_category": "A05 Injection",
             "verdict": verdict,
             "severity": severity,
             "reason": f"{name} 분석 결과",
@@ -155,6 +157,10 @@ class PostprocessTests(unittest.TestCase):
         result = self.result([self.finding(verdict="SAFE", severity="HIGH")])
         self.assertEqual(result["vulnerability_count"], 0)
         self.assertEqual(result["verdict_ko"], "양호")
+        self.assertIsNone(result["vulnerability_name"])
+        self.assertIsNone(result["vulnerability_name_ko"])
+        self.assertIsNone(result["owasp_category"])
+        self.assertIsNone(result["owasp_category_ko"])
         self.assertIsNone(result["severity"])
         self.assertIsNone(result["severity_ko"])
 
@@ -162,8 +168,43 @@ class PostprocessTests(unittest.TestCase):
         result = self.result([self.finding(verdict="N/A", severity="LOW")])
         self.assertEqual(result["vulnerability_count"], 0)
         self.assertEqual(result["verdict_ko"], "판단 불가")
+        self.assertIsNone(result["vulnerability_name"])
+        self.assertIsNone(result["vulnerability_name_ko"])
+        self.assertIsNone(result["owasp_category"])
+        self.assertIsNone(result["owasp_category_ko"])
         self.assertIsNone(result["severity"])
         self.assertIsNone(result["severity_ko"])
+
+    def test_safe_and_na_have_no_representative_vulnerability(self):
+        with mock.patch.object(main, "select_representative_vulnerability") as select:
+            result = self.result([
+                self.finding("Sensitive Information Exposure", "SAFE", "HIGH"),
+                self.finding(
+                    "Broken Access Control / IDOR",
+                    "N/A",
+                    "MEDIUM",
+                    reason="현재 패킷만으로 판단 근거가 부족합니다.",
+                    additional_check="권한이 다른 사용자와 비교가 필요합니다.",
+                ),
+            ])
+        select.assert_not_called()
+        self.assertEqual(result["vulnerability_count"], 0)
+        self.assertEqual(result["verdict"], "N/A")
+        self.assertIsNone(result["vulnerability_name"])
+        self.assertIsNone(result["owasp_category"])
+        self.assertEqual(len(result["vulnerabilities"]), 2)
+        self.assertEqual(result["additional_check"], "권한이 다른 사용자와 비교가 필요합니다.")
+
+    def test_vulnerable_safe_and_na_select_highest_vulnerable_only(self):
+        result = self.result([
+            self.finding("Sensitive Information Exposure", "SAFE", "CRITICAL"),
+            self.finding("SQL Injection", "VULNERABLE", "MEDIUM"),
+            self.finding("Path Traversal", "N/A", "CRITICAL"),
+            self.finding("Cross-Site Scripting (XSS)", "VULNERABLE", "HIGH"),
+        ])
+        self.assertEqual(result["vulnerability_count"], 2)
+        self.assertEqual(result["vulnerability_name"], "Cross-Site Scripting (XSS)")
+        self.assertEqual(result["severity"], "HIGH")
 
     def test_all_canonical_korean_mappings(self):
         expected_severity = {
