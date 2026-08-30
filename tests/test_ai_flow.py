@@ -37,6 +37,16 @@ class PayloadTests(unittest.TestCase):
         self.assertIn('"vulnerabilities": [', main.SYSTEM_PROMPT)
         self.assertIn("Do not generate vulnerability_count", main.SYSTEM_PROMPT)
 
+    def test_prompt_defines_safe_and_na_evidence_boundary(self):
+        self.assertIn(
+            '9. If the provided HTTP sections contain sufficient evidence',
+            main.SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            '10. The absence of an error message alone is not sufficient evidence of SAFE.',
+            main.SYSTEM_PROMPT,
+        )
+
     def assert_sections(self, request, response, expected_keys):
         result = process_packet(
             request,
@@ -174,6 +184,23 @@ class PostprocessTests(unittest.TestCase):
         self.assertIsNone(result["owasp_category_ko"])
         self.assertIsNone(result["severity"])
         self.assertIsNone(result["severity_ko"])
+
+    def test_mock_safe_na_and_vulnerable_verdicts(self):
+        cases = [
+            ("observable safe handling", "SAFE", "HIGH", "SAFE", 0),
+            ("insufficient evidence", "N/A", "LOW", "N/A", 0),
+            ("observable vulnerability", "VULNERABLE", "HIGH", "VULNERABLE", 1),
+        ]
+        for case_name, verdict, severity, expected_verdict, expected_count in cases:
+            with self.subTest(case=case_name):
+                result = self.result([
+                    self.finding(verdict=verdict, severity=severity),
+                ])
+                self.assertEqual(result["verdict"], expected_verdict)
+                self.assertEqual(result["vulnerability_count"], expected_count)
+                if verdict != "VULNERABLE":
+                    self.assertIsNone(result["vulnerability_name"])
+                    self.assertIsNone(result["severity"])
 
     def test_safe_and_na_have_no_representative_vulnerability(self):
         with mock.patch.object(main, "select_representative_vulnerability") as select:

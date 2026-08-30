@@ -150,6 +150,8 @@ Use OWASP Top 10:2025 for high-level risk categorization and OWASP Web Security 
 6. Evidence must come from the supplied Request or Response. Do not assume or describe a section that was not supplied.
 7. Redacted values such as [REDACTED_TOKEN] and [REDACTED_SESSION] are not attack evidence.
 8. Do not use expected labels or ground-truth information outside Request and Response.
+9. If the provided HTTP sections contain sufficient evidence to evaluate the tested behavior and no observable vulnerabilities or security flaws are present, the final verdict MUST be explicitly marked as "SAFE" (양호). If the supplied data is insufficient to determine whether the behavior is safe or vulnerable, return "N/A" instead of SAFE.
+10. The absence of an error message alone is not sufficient evidence of SAFE. A SAFE verdict should be based on observable safe handling such as rejection, encoding, authorization enforcement, input neutralization, validation, or other protective behavior.
 
 [Assessment Guidelines]
 
