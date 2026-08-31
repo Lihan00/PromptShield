@@ -118,3 +118,4 @@ if __name__ == "__main__":
     else:
         print("처리 성공 — LLM팀으로 넘어갈 데이터 (llm_payload):\n")
         print(json.dumps(result["llm_payload"], ensure_ascii=False, indent=2))
+
