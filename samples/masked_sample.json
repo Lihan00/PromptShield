@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/search",
+    "query_params": {
+      "q": "<script>alert(1)</script>"
+    },
+    "headers": {
+      "Host": "example.test",
+      "Accept": "text/html",
+      "Authorization": "[REDACTED_TOKEN]"
+    },
+    "body": ""
+  },
+  "response": {
+    "status_code": 500,
+    "headers": {
+      "Content-Type": "text/html; charset=utf-8",
+      "Server": "Werkzeug/2.2.3 Python/3.10.12",
+      "X-Powered-By": "Flask"
+    },
+    "body_excerpt": "<html><body>Search result: <script>alert(1)</script><pre>Traceback (most recent call last): File /srv/app/search.py, line 42, in search RuntimeError: database connection failed for db-internal.local</pre></body></html>"
+  }
+}
