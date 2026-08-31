@@ -878,7 +878,7 @@ def cleanup_old_reports(output_dir: str, max_age_seconds: int = 1800):
         return
     current_time = time.time()
     for filename in os.listdir(output_dir):
-        if filename.endswith(".html"):
+        if filename.endswith(".pdf"):
             file_path = os.path.join(output_dir, filename)
             if current_time - os.path.getmtime(file_path) > max_age_seconds:
                 try:
