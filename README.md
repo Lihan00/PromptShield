@@ -89,11 +89,11 @@ Unrestricted File Upload
 보고서 내보내기: 진단 결과를 깔끔하게 스타일링된 PDF 보고서 형식으로 생성 및 다운로드
 
 📂 프로젝트 구조 (Project Structure)
-Plaintext
-PromptShield/
-├── app.py                   # Streamlit 메인 실행 파일 및 UI 엔트리포인트
-├── orchestrator.py          # 패킷 파싱 및 정규식 마스킹 처리 전처리 모듈
-├── main.py                  # OpenAI API 호출 및 Prompt Engineering / PDF 리포트 생성
-├── requirements.txt         # 프로젝트 의존성 라이브러리 목록
-├── .env                     # API 키 등 환경 변수 관리 파일
-└── README.md                # 프로젝트 안내 문서
+Plaintext  
+PromptShield/  
+├── app.py                   # Streamlit 메인 실행 파일 및 UI 엔트리포인트  
+├── orchestrator.py          # 패킷 파싱 및 정규식 마스킹 처리 전처리 모듈  
+├── main.py                  # OpenAI API 호출 및 Prompt Engineering / PDF 리포트 생성  
+├── requirements.txt         # 프로젝트 의존성 라이브러리 목록  
+├── .env                     # API 키 등 환경 변수 관리 파일  
+└── README.md                # 프로젝트 안내 문서  
