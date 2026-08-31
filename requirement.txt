@@ -1,0 +1,18 @@
+# Web Framework & UI
+streamlit>=1.30.0
+
+# Environment & Configuration
+python-dotenv>=1.0.0
+
+# AI & LLM API
+openai>=1.10.0
+
+# PDF Generation Libraries
+weasyprint>=60.0
+pdfkit>=1.0.0
+xhtml2pdf>=0.2.11
+reportlab>=4.0.0
+
+# Async & Playwright Automation
+nest-asyncio>=1.5.8
+playwright>=1.40.0
